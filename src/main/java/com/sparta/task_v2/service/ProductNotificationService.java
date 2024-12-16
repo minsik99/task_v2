@@ -24,57 +24,65 @@ public class ProductNotificationService {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new IllegalArgumentException("상품이 존재하지 않습니다."));
 
-        // 2. 상품 재입고 처리
+        if (!product.getStockStatus()) {
+            throw new IllegalStateException("재고가 없는 상품입니다.");
+        }
+
+        // 2. 재입고 회차 증가
+        if (isManual) {
+            System.out.println("관리자에 의해 수동 재입고 알림이 요청되었습니다.");
+        }
         product.increaseRestockAndStatus();
         productRepository.save(product);
 
-        // 3. 재입고 알림 상태 초기화
-        ProductNotificationHistory notificationHistory = new ProductNotificationHistory(
-                product,
-                product.getRestockCycle(),
-                ProductNotificationHistory.NotificationStatus.IN_PROGRESS
-        );
-        notificationHistoryRepository.save(notificationHistory);
+        // 3. 알림 상태 초기화
+        ProductNotificationHistory history = notificationHistoryRepository.findByProductIdAndRestockCycle(productId, product.getRestockCycle())
+                .orElse(new ProductNotificationHistory(product, product.getRestockCycle(), ProductNotificationHistory.NotificationStatus.IN_PROGRESS));
+        notificationHistoryRepository.save(history);
 
-        // 4. 알림 전송 대상 조회
+        // 4. 알림 대상 조회
         List<ProductUserNotification> notifications = userNotificationRepository.findByProductIdAndIsActive(productId, true);
+        Long lastSentUserId = history.getLastUserId();
 
-        // 5. 알림 전송 루프
         int sentCount = 0;
-        for (ProductUserNotification userNotification : notifications) {
-            if (sentCount >= 500) {
+        for (ProductUserNotification user : notifications) {
+            // 마지막으로 전송된 사용자의 아이디 확인
+            if (lastSentUserId != null && user.getUserId() <= lastSentUserId) {
+                continue;
+            }
+
+            // 중간에 재고가 소진되면 알림 중단
+            if (!product.getStockStatus()) {
+                history.updateStatus(ProductNotificationHistory.NotificationStatus.CANCELED_BY_SOLD_OUT, lastSentUserId);
+                notificationHistoryRepository.save(history);
                 break;
             }
 
-            // 알림 전송 처리
-            ProductUserNotificationHistory history = new ProductUserNotificationHistory(
-                    product,
-                    userNotification.getUserId(),
-                    product.getRestockCycle()
-            );
-            userNotificationHistoryRepository.save(history);
+            System.out.println(user.getProduct() + "의 재고가 생겼습니다");
+
+            // 히스토리 기록
+            ProductUserNotificationHistory userHistory = new ProductUserNotificationHistory(
+                    product, user.getUserId(), product.getRestockCycle());
+            userNotificationHistoryRepository.save(userHistory);
+
             sentCount++;
+            lastSentUserId = user.getUserId(); // 마지막 발송 사용자 ID 갱신
+            history.updateStatus(ProductNotificationHistory.NotificationStatus.IN_PROGRESS, lastSentUserId);
+            notificationHistoryRepository.save(history);
+
+            if (sentCount >= 500) break;
         }
 
-        // 6. 알림 상태 업데이트
-        if (notifications.size() > 0) {
-            notificationHistory.updateStatus(
-                    ProductNotificationHistory.NotificationStatus.COMPLETED,
-                    notifications.get(notifications.size() - 1).getUserId()
-            );
-        } else {
-            notificationHistory.updateStatus(ProductNotificationHistory.NotificationStatus.COMPLETED, null);
+        // 5. 알림 상태 업데이트
+        if (product.getStockStatus()) {
+            history.updateStatus(ProductNotificationHistory.NotificationStatus.COMPLETED, lastSentUserId);
         }
+        notificationHistoryRepository.save(history);
 
-        notificationHistoryRepository.save(notificationHistory);
-
-        // 7. 응답 생성
+        // 6. 결과 반환
         return new ProductNotificationResponseDto(
-                product.getId(),
-                product.getRestockCycle(),
-                notificationHistory.getStatus().name(),
-                notificationHistory.getLastUserId(),
-                notificationHistory.getUpdatedAt().toString()
+                product.getId(), product.getRestockCycle(), history.getStatus().name(),
+                history.getLastUserId(), history.getUpdatedAt().toString()
         );
     }
 }
