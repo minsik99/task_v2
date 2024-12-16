@@ -24,18 +24,4 @@ public class ProductUserNotification {
 
     protected ProductUserNotification() {
     }
-
-    public ProductUserNotification(Product product, Long userId) {
-        this.product = product;
-        this.userId = userId;
-        this.isActive = true;
-    }
-
-    public void deactivate() {
-        this.isActive = false;
-    }
-
-    public void activate() {
-        this.isActive = true;
-    }
 }

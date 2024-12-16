@@ -25,7 +25,7 @@ public class ProductNotificationService {
                 .orElseThrow(() -> new IllegalArgumentException("상품이 존재하지 않습니다."));
 
         // 2. 상품 재입고 처리
-        product.incrementRestockCycle();
+        product.increaseRestockAndStatus();
         productRepository.save(product);
 
         // 3. 재입고 알림 상태 초기화

@@ -24,22 +24,7 @@ public class Product {
     protected Product() {
     }
 
-    public Product(String name, Integer restockCycle, Boolean stockStatus) {
-        this.name = name;
-        this.restockCycle = restockCycle != null ? restockCycle : 0;
-        this.stockStatus = stockStatus != null ? stockStatus : true;
-    }
-
-    public void restock(int newRestockCycle) {
-        this.restockCycle = newRestockCycle;
-        this.stockStatus = true;
-    }
-
-    public void markOutOfStock() {
-        this.stockStatus = false;
-    }
-
-    public void incrementRestockCycle() {
+    public void increaseRestockAndStatus() {
         this.restockCycle += 1;
         this.stockStatus = true;
     }
