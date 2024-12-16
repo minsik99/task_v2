@@ -2,6 +2,7 @@ services:
   db:
     image: mysql:8.0
     container_name: mysql_container
+    env_file: .env
     networks:
       - app_network
     restart: always
@@ -15,7 +16,7 @@ services:
       - db_data:/var/lib/mysql
       - ./init:/docker-entrypoint-initdb.d
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "db", "-u${DB_USERNAME}", "-p${MYSQL_PASSWORD}"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u${DB_USERNAME}", "-p${MYSQL_PASSWORD}"]
       interval: 10s
       timeout: 5s
       retries: 5
